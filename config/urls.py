@@ -7,7 +7,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('', IndexView.as_view(), name='index'),  # Ruta para la página de inicio
-    #path('camera/'),include('core_apps.camera.urls'),  # Ruta para la aplicación de cámara
-    #path('common/',include('core_apps.common.urls')),  # Ruta para la aplicación común
-
+    path('camera/', include('core_apps.camera.urls')),# Ruta para la camara
+    
 ]
