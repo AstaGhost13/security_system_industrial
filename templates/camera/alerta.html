@@ -1,0 +1,413 @@
+{% extends 'layouts/base.html' %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0 text-white">Sistema de Alertas</h3>
+                        <div>
+                            <button id="toggleSound" class="btn btn-sm btn-info me-2">
+                                <i class="fas fa-volume-up"></i> Sonido
+                            </button>
+                            <button id="refreshAlerts" class="btn btn-sm btn-light">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table align-items-center table-flush">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th scope="col">Tipo</th>
+                                    <th scope="col">Descripción</th>
+                                    <th scope="col">Ubicación</th>
+                                    <th scope="col">Fecha/Hora</th>
+                                    <th scope="col">Prioridad</th>
+                                    <th scope="col">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alertsContainer">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="sr-only">Cargando...</span>
+                                        </div>
+                                        <p class="mt-2">Cargando alertas...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer py-2">
+                    <small class="text-muted" id="lastUpdate">Última actualización: --:--:--</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalles de alerta -->
+<div class="modal fade" id="alertDetailModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="alertModalTitle">Detalles de Alerta</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert-info-card mb-4">
+                            <h6><i class="fas fa-info-circle mr-2"></i>Información Básica</h6>
+                            <hr>
+                            <div id="basicAlertInfo"></div>
+                        </div>
+                        <div class="alert-map-container mb-4">
+                            <h6><i class="fas fa-map-marker-alt mr-2"></i>Ubicación</h6>
+                            <hr>
+                            <div id="alertMap" style="height: 200px; background-color: #eee;"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert-media-container">
+                            <h6><i class="fas fa-camera mr-2"></i>Evidencia</h6>
+                            <hr>
+                            <div id="alertMediaCarousel" class="carousel slide" data-ride="carousel">
+                                <div class="carousel-inner" id="alertMediaContent">
+                                    <!-- Las imágenes/videos se cargarán aquí -->
+                                </div>
+                                <a class="carousel-control-prev" href="#alertMediaCarousel" role="button" data-slide="prev">
+                                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                    <span class="sr-only">Anterior</span>
+                                </a>
+                                <a class="carousel-control-next" href="#alertMediaCarousel" role="button" data-slide="next">
+                                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                    <span class="sr-only">Siguiente</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" id="resolveAlertBtn">Marcar como Resuelta</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    /* Estilos personalizados para el sistema de alertas */
+    .alert-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+    }
+    
+    .alert-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .alert-critical {
+        border-left-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+    
+    .alert-high {
+        border-left-color: #fd7e14;
+        background-color: rgba(253, 126, 20, 0.05);
+    }
+    
+    .alert-medium {
+        border-left-color: #ffc107;
+        background-color: rgba(255, 193, 7, 0.05);
+    }
+    
+    .alert-low {
+        border-left-color: #28a745;
+        background-color: rgba(40, 167, 69, 0.05);
+    }
+    
+    .priority-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.35em 0.65em;
+    }
+    
+    .alert-info-card {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+    
+    .alert-media-container {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .carousel-item img {
+        max-height: 300px;
+        object-fit: contain;
+    }
+    
+    /* Animación para nuevas alertas */
+    @keyframes newAlert {
+        0% { background-color: rgba(255, 193, 7, 0.3); }
+        100% { background-color: transparent; }
+    }
+    
+    .new-alert {
+        animation: newAlert 2s ease-out;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Configuración global
+    const ALERT_SYSTEM = {
+        soundEnabled: true,
+        alertSound: new Audio('/static/assets/sounds/alert.wav'), // Asegúrate de tener este archivo
+        currentAlerts: [],
+        currentAlertId: null,
+        map: null,
+        config: {
+            urls: {
+                alerts: '/api/alerts/',
+                resolve: '/api/alerts/resolve/'
+            },
+            priorities: {
+                'critical': { class: 'danger', text: 'Crítica', icon: 'fa-skull-crossbones' },
+                'high': { class: 'warning', text: 'Alta', icon: 'fa-exclamation-triangle' },
+                'medium': { class: 'info', text: 'Media', icon: 'fa-exclamation-circle' },
+                'low': { class: 'success', text: 'Baja', icon: 'fa-info-circle' }
+            },
+            types: {
+                'intrusion': { icon: 'fa-user-secret', color: '#dc3545' },
+                'fire': { icon: 'fa-fire', color: '#fd7e14' },
+                'dangerous_object': { icon: 'fa-radiation-alt', color: '#28a745' },
+                'camera_offline': { icon: 'fa-video-slash', color: '#6c757d' }
+            }
+        }
+    };
+
+    // 1. Inicialización del sistema
+    function initAlertSystem() {
+        loadAlerts();
+        setInterval(loadAlerts, 30000); // Actualizar cada 30 segundos
+        initEventListeners();
+        updateTimestamp();
+    }
+
+    // 2. Cargar alertas desde el servidor
+    function loadAlerts() {
+        $.ajax({
+            url: ALERT_SYSTEM.config.urls.alerts,
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if(response && response.alerts) {
+                    processAlerts(response.alerts);
+                }
+            },
+            error: function(xhr) {
+                console.error('Error al cargar alertas:', xhr.responseText);
+            },
+            complete: function() {
+                $('#lastUpdate').text('Última actualización: ' + new Date().toLocaleTimeString());
+            }
+        });
+    }
+
+    // 3. Procesar y mostrar alertas
+    function processAlerts(alerts) {
+        let newAlerts = false;
+        const container = $('#alertsContainer');
+        
+        // Verificar si hay alertas nuevas
+        if(ALERT_SYSTEM.currentAlerts.length > 0 && alerts.length > ALERT_SYSTEM.currentAlerts.length) {
+            newAlerts = true;
+            if(ALERT_SYSTEM.soundEnabled) {
+                ALERT_SYSTEM.alertSound.play().catch(e => console.log('No se pudo reproducir sonido:', e));
+            }
+        }
+        
+        ALERT_SYSTEM.currentAlerts = alerts;
+        
+        if(alerts.length === 0) {
+            container.html(`
+                <tr>
+                    <td colspan="6" class="text-center py-4">
+                        <i class="fas fa-check-circle text-success fa-2x mb-2"></i>
+                        <p>No hay alertas activas</p>
+                    </td>
+                </tr>
+            `);
+            return;
+        }
+        
+        let html = '';
+        alerts.forEach(alert => {
+            const priority = ALERT_SYSTEM.config.priorities[alert.priority] || 
+                           { class: 'secondary', text: 'Desconocida', icon: 'fa-question-circle' };
+            const type = ALERT_SYSTEM.config.types[alert.type] || 
+                       { icon: 'fa-bell', color: '#6c757d' };
+            
+            html += `
+                <tr class="alert-card alert-${priority.class.toLowerCase()} ${newAlerts && !alert.viewed ? 'new-alert' : ''}" 
+                    data-alert-id="${alert.id}" onclick="showAlertDetail('${alert.id}')" style="cursor: pointer;">
+                    <td>
+                        <i class="fas ${type.icon} mr-2" style="color: ${type.color};"></i>
+                        ${alert.type_display || alert.type}
+                    </td>
+                    <td>${alert.description || 'Sin descripción'}</td>
+                    <td>${alert.location || 'No especificada'}</td>
+                    <td>${new Date(alert.timestamp).toLocaleString()}</td>
+                    <td>
+                        <span class="badge priority-badge badge-${priority.class}">
+                            <i class="fas ${priority.icon} mr-1"></i>
+                            ${priority.text}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-${priority.class}">
+                            <i class="fas fa-eye"></i> Ver
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        container.html(html);
+    }
+
+    // 4. Mostrar detalles de alerta
+    window.showAlertDetail = function(alertId) {
+        const alert = ALERT_SYSTEM.currentAlerts.find(a => a.id == alertId);
+        if(!alert) return;
+        
+        ALERT_SYSTEM.currentAlertId = alertId;
+        
+        // Configurar información básica
+        const priority = ALERT_SYSTEM.config.priorities[alert.priority] || 
+                        { class: 'secondary', text: 'Desconocida', icon: 'fa-question-circle' };
+        
+        $('#basicAlertInfo').html(`
+            <p><strong>Tipo:</strong> ${alert.type_display || alert.type}</p>
+            <p><strong>Prioridad:</strong> 
+                <span class="badge badge-${priority.class}">
+                    ${priority.text}
+                </span>
+            </p>
+            <p><strong>Fecha/Hora:</strong> ${new Date(alert.timestamp).toLocaleString()}</p>
+            <p><strong>Descripción:</strong> ${alert.details || 'No hay detalles adicionales'}</p>
+        `);
+        
+        // Configurar multimedia
+        const mediaContent = $('#alertMediaContent');
+        mediaContent.empty();
+        
+        if(alert.media && alert.media.length > 0) {
+            alert.media.forEach((media, index) => {
+                const activeClass = index === 0 ? 'active' : '';
+                if(media.type === 'image') {
+                    mediaContent.append(`
+                        <div class="carousel-item ${activeClass}">
+                            <img src="${media.url}" class="d-block w-100" alt="Evidencia">
+                        </div>
+                    `);
+                } else if(media.type === 'video') {
+                    mediaContent.append(`
+                        <div class="carousel-item ${activeClass}">
+                            <video controls class="d-block w-100">
+                                <source src="${media.url}" type="video/mp4">
+                                Tu navegador no soporta videos HTML5.
+                            </video>
+                        </div>
+                    `);
+                }
+            });
+        } else {
+            mediaContent.append(`
+                <div class="carousel-item active">
+                    <div class="d-flex align-items-center justify-content-center" style="height: 300px;">
+                        <i class="fas fa-image fa-3x text-muted"></i>
+                        <p class="ml-2">No hay evidencia multimedia</p>
+                    </div>
+                </div>
+            `);
+        }
+        
+        // Configurar mapa (requiere integración con API de mapas como Google Maps o Leaflet)
+        // initAlertMap(alert.location_lat, alert.location_lng);
+        
+        $('#alertDetailModal').modal('show');
+    };
+
+    // 5. Manejadores de eventos
+    function initEventListeners() {
+        // Refrescar alertas
+        $('#refreshAlerts').click(function() {
+            $(this).find('i').addClass('fa-spin');
+            loadAlerts();
+            setTimeout(() => $(this).find('i').removeClass('fa-spin'), 1000);
+        });
+        
+        // Alternar sonido
+        $('#toggleSound').click(function() {
+            ALERT_SYSTEM.soundEnabled = !ALERT_SYSTEM.soundEnabled;
+            $(this).html(
+                `<i class="fas ${ALERT_SYSTEM.soundEnabled ? 'fa-volume-up' : 'fa-volume-mute'}"></i> ` +
+                `${ALERT_SYSTEM.soundEnabled ? 'Sonido ON' : 'Sonido OFF'}`
+            );
+        });
+        
+        // Resolver alerta
+        $('#resolveAlertBtn').click(function() {
+            if(!ALERT_SYSTEM.currentAlertId) return;
+            
+            $(this).html('<i class="fas fa-spinner fa-spin"></i> Procesando...').prop('disabled', true);
+            
+            $.ajax({
+                url: ALERT_SYSTEM.config.urls.resolve,
+                type: 'POST',
+                data: {
+                    alert_id: ALERT_SYSTEM.currentAlertId,
+                    csrfmiddlewaretoken: '{{ csrf_token }}'
+                },
+                success: function() {
+                    $('#alertDetailModal').modal('hide');
+                    loadAlerts();
+                },
+                error: function() {
+                    alert('Error al resolver la alerta');
+                    $('#resolveAlertBtn').html('Marcar como Resuelta').prop('disabled', false);
+                }
+            });
+        });
+    }
+
+    // 6. Función para actualizar timestamp
+    function updateTimestamp() {
+        $('#lastUpdate').text('Última actualización: ' + new Date().toLocaleTimeString());
+        setTimeout(updateTimestamp, 60000); // Actualizar cada minuto
+    }
+
+    // Inicializar el sistema
+    initAlertSystem();
+});
+</script>
+{% endblock %}
